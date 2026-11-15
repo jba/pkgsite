@@ -1,0 +1,86 @@
+{
+	"golang.org/x/pkgsite/internal/database": {
+		"deferinloop": [
+			{
+				"category": "deferinloop/cleanup-lifetime",
+				"posn": "internal/database/database.go:410:4",
+				"end": "internal/database/database.go:410:22",
+				"message": "deferred cleanup runs after the loop instead of after this iteration",
+				"related": [
+					{
+						"posn": "internal/database/database.go:403:2",
+						"end": "internal/database/database.go:403:5",
+						"message": "each iteration of this loop defers another cleanup"
+					},
+					{
+						"posn": "internal/database/database.go:436:1",
+						"end": "internal/database/database.go:436:2",
+						"message": "the deferred cleanups all run here, when the function returns"
+					}
+				]
+			},
+			{
+				"category": "deferinloop/cleanup-lifetime",
+				"posn": "internal/database/database.go:417:4",
+				"end": "internal/database/database.go:417:22",
+				"message": "deferred cleanup runs after the loop instead of after this iteration",
+				"related": [
+					{
+						"posn": "internal/database/database.go:403:2",
+						"end": "internal/database/database.go:403:5",
+						"message": "each iteration of this loop defers another cleanup"
+					},
+					{
+						"posn": "internal/database/database.go:436:1",
+						"end": "internal/database/database.go:436:2",
+						"message": "the deferred cleanups all run here, when the function returns"
+					}
+				]
+			}
+		]
+	},
+	"golang.org/x/pkgsite/internal/testing/testhelper": {
+		"resourcelifetime": [
+			{
+				"category": "resourcelifetime/missing-release",
+				"posn": "internal/testing/testhelper/testhelper.go:140:16",
+				"end": "internal/testing/testhelper/testhelper.go:140:31",
+				"message": "owned resource from os.Create is not released on every return path",
+				"related": [
+					{
+						"posn": "internal/testing/testhelper/testhelper.go:144:44",
+						"end": "internal/testing/testhelper/testhelper.go:144:54",
+						"message": "when this is true"
+					},
+					{
+						"posn": "internal/testing/testhelper/testhelper.go:145:4",
+						"end": "internal/testing/testhelper/testhelper.go:145:14",
+						"message": "returns here without releasing `file`"
+					}
+				]
+			}
+		]
+	},
+	"golang.org/x/pkgsite/tests/api": {
+		"resourcelifetime": [
+			{
+				"category": "resourcelifetime/missing-release",
+				"posn": "tests/api/main.go:304:19",
+				"end": "tests/api/main.go:304:83",
+				"message": "owned resource from os.OpenFile is not released on every return path",
+				"related": [
+					{
+						"posn": "tests/api/main.go:309:6",
+						"end": "tests/api/main.go:309:16",
+						"message": "when this is true"
+					},
+					{
+						"posn": "tests/api/main.go:310:4",
+						"end": "tests/api/main.go:310:14",
+						"message": "returns here without releasing `outFile`"
+					}
+				]
+			}
+		]
+	}
+}
