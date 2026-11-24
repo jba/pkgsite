@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"golang.org/x/pkgsite/internal"
 	"golang.org/x/pkgsite/internal/config"
@@ -141,6 +142,9 @@ func (q *gcp) newTaskRequest(modulePath, version string, opts *queue.Options) *t
 	task := &taskspb.Task{
 		Name:             fmt.Sprintf("%s/tasks/%s", q.queueName, taskID),
 		DispatchDeadline: durationpb.New(maxCloudTasksTimeout),
+	}
+	if !opts.ScheduleTime.IsZero() {
+		task.ScheduleTime = timestamppb.New(opts.ScheduleTime)
 	}
 	task.MessageType = &taskspb.Task_HttpRequest{
 		HttpRequest: &taskspb.HttpRequest{

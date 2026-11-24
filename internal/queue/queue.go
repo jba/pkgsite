@@ -8,6 +8,7 @@ package queue
 
 import (
 	"context"
+	"time"
 )
 
 // A Queue provides an interface for asynchronous scheduling of fetch actions.
@@ -28,6 +29,10 @@ type Options struct {
 	// Source is the source that requested the task to be queued. It is
 	// either "frontend" or the empty string if it is the worker.
 	Source string
+
+	// ScheduleTime is the time at which the task should become available for
+	// processing. A zero value means that the task should run immediately.
+	ScheduleTime time.Time
 }
 
 const (

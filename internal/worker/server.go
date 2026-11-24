@@ -62,6 +62,7 @@ type Server struct {
 	workerDBInfo     func() *postgres.UserInfo
 	loadShedder      *loadShedder
 	embeddingsClient *embeddings.Client
+	enqueueSpacing   time.Duration
 }
 
 // ServerConfig contains everything needed by a Server.
@@ -76,6 +77,9 @@ type ServerConfig struct {
 	StaticPath       template.TrustedSource
 	GetExperiments   func() []*internal.Experiment
 	EmbeddingsClient *embeddings.Client
+	// EnqueueSpacing is the delay between tasks for different versions of the
+	// same module selected in one enqueue batch. A zero value disables spacing.
+	EnqueueSpacing time.Duration
 }
 
 const (
@@ -123,6 +127,7 @@ func NewServer(cfg *config.Config, scfg ServerConfig) (_ *Server, err error) {
 		getExperiments:   scfg.GetExperiments,
 		workerDBInfo:     func() *postgres.UserInfo { return p.Current().(*postgres.UserInfo) },
 		embeddingsClient: scfg.EmbeddingsClient,
+		enqueueSpacing:   scfg.EnqueueSpacing,
 	}
 	s.setLoadShedder(context.Background())
 	return s, nil
@@ -605,11 +610,14 @@ func (s *Server) Enqueue(ctx context.Context, w http.ResponseWriter, limit int, 
 		nEnqueued, nErrors int
 	)
 	sem := make(chan struct{}, concurrentEnqueues)
-	for _, m := range modules {
+	enqueueStart := time.Now()
+	modulePositions := map[string]int{}
+	for _, m := range orderModulesForEnqueue(modules) {
 		opts := queue.Options{
 			Suffix:            suffix,
 			DisableProxyFetch: shouldDisableProxyFetch(m),
 			Source:            queue.SourceWorkerValue,
+			ScheduleTime:      nextModuleScheduleTime(m.ModulePath, modulePositions, enqueueStart, s.enqueueSpacing),
 		}
 		sem <- struct{}{}
 		go func() {
@@ -632,6 +640,42 @@ func (s *Server) Enqueue(ctx context.Context, w http.ResponseWriter, limit int, 
 	}
 	log.Infof(ctx, "Successfully scheduled modules to be fetched: %d modules enqueued, %d errors", nEnqueued, nErrors)
 	return nil
+}
+
+// orderModulesForEnqueue groups versions by module path and orders each group
+// from newest to oldest, so newer versions receive earlier schedule times. The
+// module groups retain the order in which their paths first appeared.
+func orderModulesForEnqueue(modules []*internal.ModuleVersionState) []*internal.ModuleVersionState {
+	byPath := map[string][]*internal.ModuleVersionState{}
+	var paths []string
+	for _, m := range modules {
+		if _, ok := byPath[m.ModulePath]; !ok {
+			paths = append(paths, m.ModulePath)
+		}
+		byPath[m.ModulePath] = append(byPath[m.ModulePath], m)
+	}
+
+	ordered := make([]*internal.ModuleVersionState, 0, len(modules))
+	for _, path := range paths {
+		versions := byPath[path]
+		slices.SortStableFunc(versions, func(a, b *internal.ModuleVersionState) int {
+			return -semver.Compare(a.Version, b.Version)
+		})
+		ordered = append(ordered, versions...)
+	}
+	return ordered
+}
+
+// nextModuleScheduleTime spaces versions of the same module within an enqueue
+// batch. The first version is available immediately; later versions are
+// delayed by successive multiples of spacing.
+func nextModuleScheduleTime(modulePath string, positions map[string]int, start time.Time, spacing time.Duration) time.Time {
+	position := positions[modulePath]
+	positions[modulePath] = position + 1
+	if position == 0 || spacing <= 0 {
+		return time.Time{}
+	}
+	return start.Add(time.Duration(position) * spacing)
 }
 
 func shouldDisableProxyFetch(m *internal.ModuleVersionState) bool {

@@ -6,6 +6,7 @@ package gcpqueue
 
 import (
 	"testing"
+	"time"
 
 	taskspb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
 	"github.com/google/go-cmp/cmp"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/pkgsite/internal/queue"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestNewTaskID(t *testing.T) {
@@ -61,8 +63,11 @@ func TestNewTaskRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	scheduleTime := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
+	want.Task.ScheduleTime = timestamppb.New(scheduleTime)
 	opts := &queue.Options{
-		Suffix: "suf",
+		Suffix:       "suf",
+		ScheduleTime: scheduleTime,
 	}
 	got := gcp.newTaskRequest("mod", "v1.2.3", opts)
 	want.Task.Name = got.Task.Name

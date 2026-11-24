@@ -58,6 +58,56 @@ func setupTraceDebugging(t *testing.T) {
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 }
 
+func TestOrderModulesForEnqueue(t *testing.T) {
+	module := func(path, version string) *internal.ModuleVersionState {
+		return &internal.ModuleVersionState{ModulePath: path, Version: version}
+	}
+	modules := []*internal.ModuleVersionState{
+		module("example.com/a", "v1.0.0"),
+		module("example.com/b", "v1.0.0"),
+		module("example.com/a", "v3.0.0"),
+		module("example.com/a", "v2.0.0"),
+		module("example.com/b", "v1.1.0"),
+	}
+
+	got := orderModulesForEnqueue(modules)
+	var gotVersions []string
+	for _, m := range got {
+		gotVersions = append(gotVersions, m.ModulePath+"@"+m.Version)
+	}
+	want := []string{
+		"example.com/a@v3.0.0",
+		"example.com/a@v2.0.0",
+		"example.com/a@v1.0.0",
+		"example.com/b@v1.1.0",
+		"example.com/b@v1.0.0",
+	}
+	if diff := cmp.Diff(want, gotVersions); diff != "" {
+		t.Errorf("orderModulesForEnqueue mismatch (-want, +got):\n%s", diff)
+	}
+}
+
+func TestNextModuleScheduleTime(t *testing.T) {
+	start := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
+	spacing := 3 * time.Hour
+	positions := map[string]int{}
+
+	for _, test := range []struct {
+		modulePath string
+		want       time.Time
+	}{
+		{"example.com/a", time.Time{}},
+		{"example.com/b", time.Time{}},
+		{"example.com/a", start.Add(spacing)},
+		{"example.com/a", start.Add(2 * spacing)},
+		{"example.com/b", start.Add(spacing)},
+	} {
+		if got := nextModuleScheduleTime(test.modulePath, positions, start, spacing); !got.Equal(test.want) {
+			t.Errorf("nextModuleScheduleTime(%q) = %v, want %v", test.modulePath, got, test.want)
+		}
+	}
+}
+
 func TestWorker(t *testing.T) {
 	ctx := context.Background()
 

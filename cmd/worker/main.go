@@ -56,8 +56,9 @@ var (
 	// Ordinarily, module version process enqueueing is initiated by a separate
 	// scheduler that calls /enqueue. But for convenience, you can instead have
 	// the worker periodically do the same.
-	enqueuePeriod = flag.Duration("enqueue_period", 0, "when set >0, schedules the worker to periodically enqueue work from the module_version_states table for processing, at this period")
-	enqueueLimit  = flag.Int("enqueue_limit", 10, "the amount of modules to enqueue when periodically enqueueing")
+	enqueuePeriod  = flag.Duration("enqueue_period", 0, "when set >0, schedules the worker to periodically enqueue work from the module_version_states table for processing, at this period")
+	enqueueLimit   = flag.Int("enqueue_limit", 10, "the amount of modules to enqueue when periodically enqueueing")
+	enqueueSpacing = flag.Duration("enqueue_spacing", serverconfig.GetEnvDuration(context.Background(), "GO_DISCOVERY_WORKER_ENQUEUE_SPACING", 0), "delay between different versions of the same module selected in one enqueue batch")
 )
 
 func main() {
@@ -163,6 +164,7 @@ func main() {
 		StaticPath:       template.TrustedSourceFromFlag(flag.Lookup("static").Value),
 		GetExperiments:   experimenter.Experiments,
 		EmbeddingsClient: embeddingsClient,
+		EnqueueSpacing:   *enqueueSpacing,
 	})
 	if err != nil {
 		log.Fatal(ctx, err)
